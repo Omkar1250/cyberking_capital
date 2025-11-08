@@ -103,7 +103,8 @@ router.post(
 router.get("/mf/sip-approved", auth, isAdmin, adminController.getApprovedSipConRequests);
 router.get("/mf/sip-approved-stats", auth, isAdmin, adminController.getSipApprovedStats);
 router.get("/mf/sip-approved-batches", auth, isAdmin, adminController.getSipApprovedBatches);
-
+router.get("/rm/dropdown",auth, isAdmin,adminAuthController.getAllMainRmDropdown)
+router.get("/next-rm-preview", auth, isAdmin, adminController.peekNextMainRm);
 
 
 module.exports =router

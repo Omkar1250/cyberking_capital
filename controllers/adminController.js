@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { getNextMainRm } = require("../utils/getNextRm");
 
 
 exports.handleUnderUsApproval = async (req, res) => {
@@ -29,18 +30,51 @@ exports.handleUnderUsApproval = async (req, res) => {
     }
   };
 
+exports.peekNextMainRm = async (req, res) => {
+  try {
+
+    // 1️⃣ Try to get next RM (after pointer)
+    let [rm] = await db.execute(`
+      SELECT id, name FROM rm 
+      WHERE role='mainRm' AND is_active=1
+        AND id > (SELECT last_assigned_rm_id FROM lead_assign_pointer WHERE id=1)
+      ORDER BY id ASC LIMIT 1;
+    `);
+
+    // 2️⃣ If not found → restart from first RM
+    if (rm.length === 0) {
+      [rm] = await db.execute(`
+        SELECT id, name FROM rm 
+        WHERE role='mainRm' AND is_active=1
+        ORDER BY id ASC LIMIT 1;
+      `);
+    }
+
+    // 3️⃣ Return JSON response properly
+    return res.status(200).json({
+      success: true,
+      rm: rm[0] || null
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong while fetching next RM",
+      error: error.message
+    });
+  }
+};
 
 //code approval
 exports.handleCodeApproval = async (req, res) => {
   try {
-    const {leadId} = req.params
-    const {  action, batch_code, rm } = req.body;
+    const { leadId } = req.params;
+    const { action, batch_code } = req.body;
 
     if (!leadId || !['approve', 'reject'].includes(action)) {
       return res.status(400).json({ success: false, message: 'Invalid parameters.' });
     }
 
-    // Validate existence of the lead
     const [leadResult] = await db.execute(
       'SELECT * FROM leads WHERE id = ? AND code_request_status = "requested"',
       [leadId]
@@ -52,66 +86,64 @@ exports.handleCodeApproval = async (req, res) => {
 
     const lead = leadResult[0];
 
-   if (action === 'approve') {
-  if (!batch_code || batch_code.trim() === "") {
-    return res.status(400).json({ success: false, message: 'Batch Code is required for approval.' });
-  }
+    if (action === 'approve') {
 
-  if (!rm) {
-    return res.status(400).json({ success: false, message: 'RM ID is required to assign.' });
-  }
+      if (!batch_code || batch_code.trim() === "") {
+        return res.status(400).json({ success: false, message: 'Batch Code is required.' });
+      }
 
-  // Get conversion points
-  const [pointResult] = await db.execute(
-    'SELECT points FROM conversion_points WHERE action = "code_approved"'
-  );
-  const pointsToCredit = pointResult[0]?.points || 0;
+      // ✅ AUTO ROUND ROBIN RM SELECT
+      const rmId = await getNextMainRm();
 
-  // Credit points to RM wallet
-  await db.execute(
-    'UPDATE users SET wallet = wallet + ? WHERE id = ?',
-    [pointsToCredit, lead.fetched_by]
-  );
+      // ✅ CREDIT POINTS
+      const [pointResult] = await db.execute(
+        'SELECT points FROM conversion_points WHERE action = "code_approved"'
+      );
+      const pointsToCredit = pointResult[0]?.points || 0;
 
-  // Log wallet transaction
-  await db.execute(
-    'INSERT INTO wallet_transactions (user_id, lead_id, action, points) VALUES (?, ?, ?, ?)',
-    [lead.fetched_by, lead.id, 'code_approved', pointsToCredit]
-  );
-
-  // ✅ Update lead status and assign RM
-  await db.execute(
-    `UPDATE leads 
-     SET 
-       code_request_status = 'approved',
-       code_approved_at = NOW(),
-       batch_code = ?,
-       sip_request_status = 'pending',
-       ms_teams_request_status = 'pending',
-       advance_msteams_details_sent = 'pending',
-       new_client_request_status = 'pending',
-       assigned_to = ?  
-     WHERE id = ?`,
-    [batch_code, rm, leadId]
-  );
-   
-
-  return res.status(200).json({ success: true, message: 'Code Request approved, batch code saved, RM assigned, and points credited.' });
-
-
-    } else if (action === 'reject') {
       await db.execute(
-        `UPDATE leads 
-         SET code_request_status = 'rejected'
-         WHERE id = ?`,
-        [leadId]
+        'UPDATE users SET wallet = wallet + ? WHERE id = ?',
+        [pointsToCredit, lead.fetched_by]
       );
 
-      return res.status(200).json({ success: true, message: 'Code Request rejected successfully.' });
+      await db.execute(
+        'INSERT INTO wallet_transactions (user_id, lead_id, action, points) VALUES (?, ?, ?, ?)',
+        [lead.fetched_by, lead.id, 'code_approved', pointsToCredit]
+      );
+
+      // ✅ ASSIGN RM
+      await db.execute(
+        `UPDATE leads 
+         SET 
+           code_request_status = 'approved',
+           code_approved_at = NOW(),
+           batch_code = ?,
+           sip_request_status = 'pending',
+           ms_teams_request_status = 'pending',
+           advance_msteams_details_sent = 'pending',
+           new_client_request_status = 'pending',
+           assigned_to = ?  
+         WHERE id = ?`,
+        [batch_code, rmId, leadId]
+      );
+
+      return res.status(200).json({ 
+        success: true, 
+        message: `Approved & Assigned to RM ID: ${rmId}`, 
+        assigned_rm_id: rmId 
+      });
+    }
+
+    if (action === 'reject') {
+      await db.execute(
+        `UPDATE leads SET code_request_status = 'rejected' WHERE id = ?`,
+        [leadId]
+      );
+      return res.status(200).json({ success: true, message: 'Request rejected successfully.' });
     }
 
   } catch (error) {
-    console.error('Error handling Code Approval:', error);
+    console.error('Error:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
@@ -1730,7 +1762,6 @@ exports.approveLeadAction = async (req, res) => {
   const { leadId } = req.params;
   const { action } = req.body;
   const {batch_code} = req.body;
-  const {rmId} =req.body;
 
   const validActions = {
     under_us: { column: "under_us_status", date: "under_us_approved_at" },
@@ -1799,6 +1830,9 @@ exports.approveLeadAction = async (req, res) => {
 
     // ✅ Code Request Approval
     if (action === "code_request") {
+       if (!batch_code) return res.status(400).json({ message: "Batch code required" });
+
+      const assignedRmId = await getNextMainRm();
       const [pointResult] = await db.execute(`SELECT points FROM conversion_points WHERE action = "code_approved"`);
       const pointsToCredit = pointResult[0]?.points || 0;
 
@@ -1810,7 +1844,7 @@ exports.approveLeadAction = async (req, res) => {
 
       await db.execute(
         `UPDATE leads SET code_request_status = 'approved', code_approved_at = NOW(), batch_code = ?,assigned_to = ?, sip_request_status = 'pending', ms_teams_request_status = 'pending',new_client_request_status = 'pending', advance_msteams_details_sent='pending' WHERE id = ?`,
-        [batch_code,rmId, leadId]
+        [batch_code,assignedRmId, leadId]
       );
 
       return res.status(200).json({ success: true, message: 'Code request approved, points credited.' });

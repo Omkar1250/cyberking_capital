@@ -559,3 +559,26 @@ exports.getAllMainRm = async (req, res) => {
     });
   }
 };
+
+exports.getAllMainRmDropdown = async (req, res) => {
+  try {
+    const [rows] = await db.execute(`
+      SELECT id, name, userid, is_active 
+      FROM rm 
+      WHERE role = "mainRm"
+      ORDER BY id ASC
+    `);
+
+    res.status(200).json({
+      success: true,
+      totalRms: rows.length,
+      rms: rows
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};

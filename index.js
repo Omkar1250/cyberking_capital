@@ -17,9 +17,7 @@ const app = express();
 // ✅ CORS Configuration
 app.use(cors({
     origin: [
-        "http://localhost:3000",
-        "https://main.d3bswyde92xkjs.amplifyapp.com",
-        "https://dashboard.cyberkingcapitals.com"
+        "http://localhost:3000", "https://dashboard.cyberkingcapitals.com", "https://www.dashboard.cyberkingcapitals.com"
     ],
     credentials: true
 }));
