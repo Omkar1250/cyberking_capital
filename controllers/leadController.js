@@ -2318,6 +2318,7 @@ exports.getAllLeadsForRM = async (req, res) => {
         leads.activation_request_status,
         leads.ms_teams_request_status,
         leads.sip_request_status,
+        leads.batch_code,
         users.name AS jrm_name,
         rm.name AS rm_name
       ${baseQuery}

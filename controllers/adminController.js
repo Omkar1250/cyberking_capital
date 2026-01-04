@@ -1445,6 +1445,7 @@ exports.getAllLeadsForAdmin = async (req, res) => {
         leads.aoma_request_status,
         leads.activation_request_status,
         leads.ms_teams_request_status,
+        leads.batch_code,
         leads.sip_request_status,
         users.name AS jrm_name,
         rm.name AS rm_name
