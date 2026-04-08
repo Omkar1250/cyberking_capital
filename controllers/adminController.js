@@ -3802,4 +3802,36 @@ exports.getSipApprovedBatches = async (req, res) => {
     console.error("getSipApprovedBatches error:", err);
     return res.status(500).json({ success: false, message: "Internal Server Error" });
   }
+};exports.toggleUserStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role } = req.body; // 'rm' (JRM) or 'mainRm' (RM)
+
+    if (!id || !role) {
+      return res.status(400).json({ success: false, message: "User ID and Role are required." });
+    }
+
+    const table = role === "mainRm" ? "rm" : "users";
+
+    // Get current status
+    const [rows] = await db.execute(`SELECT is_active FROM ${table} WHERE id = ?`, [id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+
+    const newStatus = rows[0].is_active === 1 ? 0 : 1;
+
+    // Update status
+    await db.execute(`UPDATE ${table} SET is_active = ? WHERE id = ?`, [newStatus, id]);
+
+    res.status(200).json({
+      success: true,
+      message: `User ${newStatus === 1 ? "activated" : "deactivated"} successfully.`,
+      is_active: newStatus
+    });
+
+  } catch (error) {
+    console.error("Toggle user status error:", error);
+    res.status(500).json({ success: false, message: "Internal server error", error: error.message });
+  }
 };

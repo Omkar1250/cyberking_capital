@@ -8,6 +8,7 @@ const { auth, isAdmin, isRm } = require('../middlewares/auth');  // Destructure 
 //auth route
 router.post('/admin/signup', adminAuthController.adminSignup)
 router.post('/login',adminAuthController.loginUser )
+router.post('/change-password', auth, adminAuthController.changePassword)
 
 // Route for Admin to approve or reject the Under Us request
 router.post('/under-us-approval', auth, isAdmin, adminController.handleUnderUsApproval);
@@ -105,6 +106,7 @@ router.get("/mf/sip-approved-stats", auth, isAdmin, adminController.getSipApprov
 router.get("/mf/sip-approved-batches", auth, isAdmin, adminController.getSipApprovedBatches);
 router.get("/rm/dropdown",auth, isAdmin,adminAuthController.getAllMainRmDropdown)
 router.get("/next-rm-preview", auth, isAdmin, adminController.peekNextMainRm);
+router.post("/toggle-user-status/:id", auth, isAdmin, adminController.toggleUserStatus)
 
 
 module.exports =router

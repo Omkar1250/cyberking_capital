@@ -67,6 +67,10 @@ exports.loginUser = async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
+    if (user.is_active === 0) {
+      return res.status(403).json({ success: false, message: "Account is deactivated. Please contact support." });
+    }
+
     // Add role
     user.role = role;
 
@@ -373,7 +377,7 @@ exports.rmDelete = async (req, res) => {
 // Get all RMs
 exports.getAllRms = async (req, res) => {
   try {
-    const [rows] = await db.execute('SELECT id, name, personal_number, ck_number, userid, upi_id, password, created_at FROM users WHERE role = "rm"');
+    const [rows] = await db.execute('SELECT id, name, personal_number, ck_number, userid, upi_id, is_active, password, created_at FROM users WHERE role = "rm"');
 
     res.status(200).json({
       success: true,
@@ -580,5 +584,75 @@ exports.getAllMainRmDropdown = async (req, res) => {
       success: false,
       error: error.message
     });
+  }
+};
+
+exports.changePassword = async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    const userId = req.user.id;
+    const { role } = req.user;
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: "Please provide both old and new passwords" });
+    }
+
+    let user = null;
+    let table = null;
+
+    // Determine target table based on role
+    if (role === "admin") {
+      table = "admins";
+    } else if (role === "rm") {
+      table = "users";
+    } else if (role === "mainRm" || role === "main-rm") {
+      table = "rm";
+    } else if (role === "manager") {
+      table = "admins"; // assuming managers are also in admins table or handled similarly
+    } else if (role === "teamsUser") {
+        table = "users"; // adjust based on schema if teamsUser is elsewhere
+    } else {
+      return res.status(400).json({ success: false, message: "Invalid user role for password change" });
+    }
+
+    // Fetch user details
+    const [rows] = await db.execute(`SELECT * FROM ${table} WHERE id = ?`, [userId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    user = rows[0];
+
+    // Verify old password
+    // Note: Admin uses bcrypt hashing, but current RM/mainRM uses plain text (per loginUser logic)
+    // We should fix this but for now we follow existing logic
+    let isMatch = false;
+    if (table === "admins") {
+      isMatch = await bcrypt.compare(oldPassword, user.password);
+    } else {
+      isMatch = (oldPassword === user.password);
+    }
+
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: "Incorrect current password" });
+    }
+
+    // Hash new password if admin, otherwise keep plain if that's the system standard
+    let passwordToStore = newPassword;
+    if (table === "admins") {
+      passwordToStore = await bcrypt.hash(newPassword, 10);
+    }
+
+    // Update password
+    await db.execute(`UPDATE ${table} SET password = ? WHERE id = ?`, [passwordToStore, userId]);
+
+    res.status(200).json({
+      success: true,
+      message: "Password updated successfully",
+    });
+
+  } catch (error) {
+    console.error("Change password error:", error);
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
