@@ -2462,10 +2462,10 @@ exports.jrmCodedAllMyClients = async (req, res) => {
 
       FROM leads l
 
-      LEFT JOIN myapp.rm rm 
+      LEFT JOIN proangleone.rm rm 
         ON rm.id = l.assigned_to
 
-      LEFT JOIN myapp.users jrm 
+      LEFT JOIN proangleone.users jrm 
         ON jrm.id = l.fetched_by
 
       ${whereClause}

@@ -2049,8 +2049,8 @@ exports.fetchMsTeamsLeadsForAdmin = async (req, res) => {
         jrm.name AS jrm_name
 
       FROM leads l
-      LEFT JOIN myapp.rm rm ON rm.id = l.assigned_to
-      LEFT JOIN myapp.users jrm ON jrm.id = l.referred_by_rm
+      LEFT JOIN proangleone.rm rm ON rm.id = l.assigned_to
+      LEFT JOIN proangleone.users jrm ON jrm.id = l.referred_by_rm
 
       ${whereClause}
       ORDER BY l.code_approved_at ASC
@@ -2375,8 +2375,8 @@ exports.fetchAdvanceMsTeamsLeadsForAdmin = async (req, res) => {
 
       FROM leads l
 
-      LEFT JOIN myapp.rm rm ON rm.id = l.assigned_to
-      LEFT JOIN myapp.users jrm ON jrm.id = l.referred_by_rm
+      LEFT JOIN proangleone.rm rm ON rm.id = l.assigned_to
+      LEFT JOIN proangleone.users jrm ON jrm.id = l.referred_by_rm
 
       ${whereClause}
       ORDER BY l.code_approved_at ASC
@@ -2809,7 +2809,7 @@ exports.fetchBasicOldClientLeadsForMsTeams = async (req, res) => {
 
       FROM advance_batch a
 
-      LEFT JOIN myapp.rm rm ON rm.id = a.refer_by
+      LEFT JOIN proangleone.rm rm ON rm.id = a.refer_by
      
 
       ${whereClause}
@@ -2909,7 +2909,7 @@ exports.fetchAdvanceOldClientLeadsForMsTeams = async (req, res) => {
       
 
       FROM advance_batch a
-      LEFT JOIN myapp.users rm ON rm.id = a.refer_by
+      LEFT JOIN proangleone.users rm ON rm.id = a.refer_by
     
 
       ${whereClause}
